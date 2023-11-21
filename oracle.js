@@ -1,8 +1,11 @@
+let keypressLog = '';
+
 document.addEventListener('keydown', function(event) {
-    if(event.keyCode == 37) {
-        alert('Left was pressed');
+    if(event.key == 'ArrowLeft') {
+        keypressLog += 'L '
     }
-    else if(event.keyCode == 39) {
-        alert('Right was pressed');
+    else if(event.key == 'ArrowRight') {
+        keypressLog += 'R '
     }
+    document.getElementById('keypresses').textContent = keypressLog;
 });
