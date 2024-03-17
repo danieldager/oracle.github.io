@@ -1,4 +1,5 @@
 import torch
+import keyboard
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 
@@ -8,13 +9,16 @@ import os
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
-"""
-How can we batch the data so that the model treats one session of prediction 
-as coming one individual? Meaning, can we get the model to personalize itself
-to the current user? The idea is not that the model learn to predict the key 
-following a 5-key sequence, but rather that it build identify the behavioral
-type of the user and predict the next key based on that. (Hidden Markov Model?)
-"""
+""" Notes """
+# How can we batch the data so that the model treats one session of prediction 
+# as coming one individual? Meaning, can we get the model to personalize itself
+# to the current user? The idea is not that the model learn to predict the key 
+# following a 5-key sequence, but rather that it build identify the behavioral
+# type of the user and predict the next key based on that. (Hidden Markov Model?)
+
+
+
+""" Database """
 
 # connect to database
 load_dotenv()
@@ -46,13 +50,20 @@ train, test = keystrokes[:train_size], keystrokes[train_size:]
 
 # TODO: implement model with with_delay sequences (extra feature)
 
+
+
 """ Hyperparameters """
+
 seq_len = 5 # number of previous keystrokes to consider
 batch_size = 16 # number of sequences to consider at once
-hidden_size = 32 # number of hidden units in lstm
+hidden_size = 4 # number of hidden units in lstm
 num_stacked_layers = 1 # number of stacked lstm layers
 learning_rate = 0.01 # learning rate for optimizer
 num_epochs = 10 # number of times to iterate over the entire dataset
+
+
+
+""" Datasets """
 
 # create feature and target sequences
 def create_sequences(data, seq_len):
@@ -74,6 +85,10 @@ def create_sequences(data, seq_len):
 
 X_train, y_train = create_sequences(train, seq_len)
 X_test, y_test = create_sequences(test, seq_len)
+
+
+
+""" Model """
 
 # create datasets and dataloaders
 class LSTMDataset(Dataset):
@@ -102,6 +117,7 @@ class LSTM(nn.Module):
 
         self.lstm = nn.LSTM(input_size, hidden_size, num_stacked_layers, batch_first=True)
         self.linear = nn.Linear(hidden_size, 1)
+        self.sigmoid = nn.Sigmoid()
 
 
     # TODO: do we want h1 and c1 to perserve state between batches?
@@ -111,11 +127,13 @@ class LSTM(nn.Module):
 
         out, _ = self.lstm(x, (h0, c0))
         out = self.linear(out[:, -1, :])
+        out = self.sigmoid(out)
         return out
 
 # create model, loss function, and optimizer
 model = LSTM(1, hidden_size, num_stacked_layers).to(device)
-loss_function = nn.MSELoss()
+# loss_function = nn.MSELoss()
+loss_function = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 def train_one_epoch():
@@ -164,3 +182,41 @@ for epoch in range(num_epochs):
     train_one_epoch()
     validate_one_epoch()
 
+
+
+""" Oracle """
+
+print("Ready!")
+correct = 0
+keystrokes = []
+prediction = None
+
+def predict(input):
+    input = 0 if input == 'left' else 1
+    input = torch.FloatTensor(input).unsqueeze(0).unsqueeze(-1).to(device)
+    with torch.no_grad(): prediction = model(input).item()
+    print("prediction: ", prediction)
+    prediction = 'right' if round(prediction) == 1 else 'left'  # Convert to 'left' or 'right'
+
+    return prediction
+
+def on_keypress(e):
+    global correct, keystrokes, prediction
+
+    if e.event_type == 'down' and e.name in ['left', 'right']:
+        print("keystrokes: ", keystrokes)
+        if len(keystrokes) > seq_len:
+            if e.name == prediction: correct += 1
+            accuracy = (correct / (len(keystrokes) - seq_len)) * 100
+            print(f"Predicted: {prediction}, Actual: {e.name}, Accuracy: {accuracy:.2f}%")
+
+        if e.name == 'left':
+            keystrokes.append('left')
+        elif e.name == 'right':
+            keystrokes.append('right')
+
+        if (len(keystrokes) >= seq_len):
+            prediction = predict(keystrokes[-seq_len:])
+
+keyboard.hook(on_keypress, suppress=True)
+keyboard.wait('esc')  # Use 'esc' key to stop the listener
