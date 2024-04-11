@@ -81,17 +81,17 @@ document.addEventListener('keydown', function(event) {
     }
     batch.push(datum)
 
-    if (index % 30 == 0) {
+    if (index % 10 == 0) {
         postBatch(batch)
         batch = []
     }
 
     // Calculate average for correct predictions
-    if (key == prediction) { correct += 1 }
-    let average = (correct / index) * 100
+    // if (key == prediction) { correct += 1 }
+    // let average = (correct / index) * 100
 
     // Add spaces between for readability
-    document.getElementById('predictions').textContent = plog.split('').join(' ')
+    // document.getElementById('predictions').textContent = plog.split('').join(' ')
     document.getElementById('keypresses').textContent = klog.split('').join(' ')
-    document.getElementById('average').textContent = Math.floor(average) + "%"
+    // document.getElementById('average').textContent = Math.floor(average) + "%"
 });

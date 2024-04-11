@@ -7,6 +7,7 @@ from pymongo import MongoClient
 from scipy.special import kl_div
 from scipy.stats import chi2_contingency, norm
 
+
 ''' Tests '''
 
 # define significance level
@@ -62,8 +63,32 @@ def markov_test(sequence):
 
 def autocorrelation(sequence, max_lag=10):
     sequence = np.array([int(x) for x in sequence])
-    result = [np.corrcoef(sequence[:-i], sequence[i:])[0, 1] for i in range(1, max_lag+1)]
-    return result
+    results = [np.corrcoef(sequence[:-i], sequence[i:])[0, 1] for i in range(1, max_lag+1)]
+    average = np.mean(results)
+
+    return average
+
+
+def randomness_tests(sequence):
+    # calculate entropy and chi-squared
+    chi2_pvalue = chi_sqrd(sequence)
+
+    # calculate wald-wolfowitz runs test
+    runs_pvalue = ww_runs(sequence)
+
+    # calculate kl divergence from ideal markov chain
+    markov_kldg = markov_test(sequence)
+
+    ac_value = autocorrelation(sequence)
+
+    results = {
+        'chi2_pvalue': round(chi2_pvalue, 5),
+        'runs_pvalue': round(runs_pvalue, 5),
+        'markov_kldg': round(markov_kldg, 5),
+        'autocorrelation': round(ac_value, 5)
+    }
+
+    return results
 
 
 ''' Main '''
@@ -83,27 +108,11 @@ for trial in trials:
     table = {'L': 0, 'R': 1}
     sequence = [table[d['key']] for d in data]
 
-    print("".join(str(s) for s in sequence))
-    break
+    # print("".join(str(s) for s in sequence))
 
-    # calculate entropy and chi-squared
-    chi2_pvalue = chi_sqrd(sequence)
+    results = randomness_tests(sequence)
 
-    # calculate wald-wolfowitz runs test
-    runs_pvalue = ww_runs(sequence)
-
-    # calculate kl divergence from ideal markov chain
-    markov_kldg = markov_test(sequence)
-
-    trial = {
-        'uuid': trial['uuid'],
-        'size': len(data),
-        'chi2_pvalue': round(chi2_pvalue, 5),
-        'runs_pvalue': round(runs_pvalue, 5),
-        'markov_kldg': round(markov_kldg, 5),
-    }
-
-    tested.append(trial)
+    tested.append(results)
 
 # pretty print tested
 print(pformat(tested))
