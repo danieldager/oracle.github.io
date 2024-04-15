@@ -271,7 +271,7 @@ def validate_one_epoch(model, loss_function, test_loader):
 models = []
 hyperparameters = []
 
-for m in range(10):
+for m in range(1):
     print(f"Training model {m + 1}")
     seq_len, batch_size, hidden_size, num_stacked_layers, \
     learning_rate, num_epochs = get_hyperparameters()
