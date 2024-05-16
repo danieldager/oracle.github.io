@@ -9,10 +9,6 @@ import matplotlib.pyplot as plt
 from time import time, sleep
 from datetime import datetime
 
-import pyautogui
-from PIL import Image
-
-
 from pyplr.pupil import PupilCore
 from pyplr.utils import unpack_data_pandas
 
@@ -35,84 +31,91 @@ p = PupilCore()
 trials_dir = "trials"
 pupil_data_dir = "pupil_data"
 
-# select a random trial duration between 60 and 180 seconds
-trial_duration = np.random.randint(10, 20)
 
-# create a unique trial name, to be used as filename for data
-trial_name = datetime.now().strftime('%H%M-%d%m%y')
+def run_trials(n_trials, min_time, max_time):
+            
+    for i in range(n_trials):
+        print(f'\nTrial {i + 1}')
 
-# begin recording pupil diameter data
-pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=trial_duration + 1)
+        # select a random trial duration between 60 and 180 seconds
+        trial_duration = np.random.randint(min_time, max_time)
 
+        # create a unique trial name, to be used as filename for data
+        trial_name = datetime.now().strftime('%m%d-%H%M')
 
-""" grey screen """
-
-# create neutral grey screen for trial
-screen_width, screen_height = pyautogui.size()
-grey_image = Image.new('RGB', (screen_width, screen_height), color='grey')
-
-grey_image_path = 'fullscreen_grey.png'
-os.system(f'open {grey_image_path}')
+        # begin recording pupil diameter data
+        pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=trial_duration + 1)
 
 
-""" track keypresses """
+        """ grey screen """
+        # https://www.fullscreen.one/
+        os.system('open grey.png')
 
-sequence = []
-k_times = []
-start = time()
 
-def on_key_event(event):
-    if event.event_type == "down":
-        if event.name == "left":
-            print(0)
-            sequence.append(0)
-            k_times.append(time() - start)
-        elif event.name == "right":
-            print(1)
-            sequence.append(1)
-            k_times.append(time() - start)
+        """ track keypresses """
 
-def track_keypresses():
-    keyboard.hook(on_key_event)
-    sleep(trial_duration)
-    print("Time's up!")
-    keyboard.unhook_all()
-    os.system('osascript -e \'quit app "Preview"\'')
-    os.remove(grey_image_path)
+        sequence = []
+        k_times = []
+        start = time()
 
-keypress_thread = threading.Thread(target=track_keypresses)
-keypress_thread.start()
-keypress_thread.join()
+        def on_key_event(event):
+            if event.event_type == "down":
+                if event.name == "left":
+                    # print(0)
+                    sequence.append(0)
+                    k_times.append(time() - start)
+                elif event.name == "right":
+                    # print(1)
+                    sequence.append(1)
+                    k_times.append(time() - start)
 
-# convert python lists into numpy arrays
-sequence = np.array(sequence)
+        def track_keypresses():
+            keyboard.hook(on_key_event)
+            sleep(trial_duration)
+            keyboard.unhook_all()
+            # os.system('osascript -e \'quit app "Preview"\'')
+            # os.remove(grey_image_path)
 
-# round to 2 decimal places to sync with pupil data
-k_times = np.array(k_times).round(2)
+        keypress_thread = threading.Thread(target=track_keypresses)
+        keypress_thread.start()
+        keypress_thread.join()
 
-# delays between keypresses, prepend 0 for first keypress
-delays = np.hstack((0, np.diff(k_times)))
 
-# extract pupil data
-pupil_data = pgr_future.result()
-pupil_data = unpack_data_pandas(pupil_data, cols=['diameter_3d'])
+        """ post-processing """
 
-# save pupil data to csv
-pupil_data.to_csv(os.path.join(pupil_data_dir, trial_name + ".csv"), index=False)
+        # convert python lists into numpy arrays
+        sequence = np.array(sequence)
 
-# extract pupil diameter at keypress times
-start = pupil_data.index[0]
-p_times = (pupil_data.index - start).round(2)
+        # round to 2 decimal places to sync with pupil data
+        k_times = np.array(k_times).round(2)
 
-indices = []
-for k_time in k_times:
-    index = np.argmin(np.abs(p_times - k_time))
-    indices.append(index)
+        # delays between keypresses, prepend 0 for first keypress
+        delays = np.hstack((0, np.diff(k_times)))
 
-diameters = [pupil_data['diameter_3d'].iloc[i] for i in indices]
+        # extract pupil data
+        pupil_data = pgr_future.result()
+        pupil_data = unpack_data_pandas(pupil_data, cols=['diameter_3d'])
 
-# create array to be exported to RNN/LSTM model
-features = np.vstack((sequence, delays, diameters))
-np.save(os.path.join(trials_dir, trial_name), features)
+        # save pupil data to csv
+        pupil_data.to_csv(os.path.join(pupil_data_dir, trial_name + ".csv"), index=False)
 
-print("All done!")
+        # extract pupil diameter at keypress times
+        start = pupil_data.index[0]
+        p_times = (pupil_data.index - start).round(2)
+
+        # grab only the index of the pupil diameter closest to the keypress time
+        indices = []
+        for k_time in k_times:
+            index = np.argmin(np.abs(p_times - k_time))
+            indices.append(index)
+
+        diameters = [pupil_data['diameter_3d'].iloc[i] for i in indices]
+
+        # create array to be exported to RNN/LSTM model
+        features = np.vstack((sequence, delays, diameters))
+        np.save(os.path.join(trials_dir, trial_name), features)
+
+
+if __name__ == "__main__":
+    run_trials(10, 30, 80)
+    print('\nAll trials complete!')
