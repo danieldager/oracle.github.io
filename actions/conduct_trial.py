@@ -28,7 +28,7 @@ open /opt/homebrew/Cellar/labrecorder/1.16.2_9/LabRecorder/LabRecorder.app
 p = PupilCore()
 
 # these are the directories where the data will be saved
-trials_dir = "trials"
+trials_dir = "blind_trials"
 pupil_data_dir = "pupil_data"
 
 
