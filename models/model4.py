@@ -3,20 +3,18 @@
 import os, sys
 import numpy as np
 from pprint import pprint
-from random import randint
+from random import randint, uniform
 from datetime import datetime
 
 import torch
 from torch import nn
-from torch.utils.data import Dataset, DataLoader, random_split
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 for module in ['actions']:
     cwd = os.path.dirname(__file__)
     path = os.path.join(cwd, '..', module)
     sys.path.append(os.path.abspath(path))
 
-from oracle2 import oracle_inference
 from load_data import load_data
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
@@ -27,14 +25,15 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 """ Model """
 
-def get_hyperparameters(random=False):
+def get_hyperparameters(random):
     if random:
+        learning_rate = 10 ** uniform(-2.5, -1.5)
         hyperparameters = {
             'batch_size': randint(50, 150),
             'hidden_size': randint(30, 80),
             'num_stacked_layers': randint(1, 3),
-            'learning_rate': 10 ** randint(-2.5, -1.5),
-            'num_epochs': randint(2, 5)
+            'learning_rate': round(learning_rate, 4),
+            'num_epochs': randint(1, 3)
         }
     else:
         hyperparameters = {
@@ -130,7 +129,7 @@ def validate_one_epoch(model, loss_function, eval_loader, log=True):
 
 """ Train/Test """
 
-def train(n_models=1, directories=[], logging=True, oracle=False, random=False):
+def train(n_models=1, directories=[], logging=True, random=True):
     all_models = []
     all_params = []
     model_names = []
@@ -140,12 +139,15 @@ def train(n_models=1, directories=[], logging=True, oracle=False, random=False):
     for m in range(n_models):
         print(f"Training model {m + 1}\n")
 
-        # get hyperparameters and load data
+        # get hyperparameters
         params = get_hyperparameters(random)
+        pprint(params), print("\n")
+
+        # load data
         train_loader, eval_loader, test_loader = load_data(directories, params['batch_size'])
         
-        # define model, loss function, optimizer
-        input_size = 3  # decision, delay, pupil diameter
+        # inputs = decision, delay, pupil diameter
+        input_size = 3
         model = LSTM(
             input_size, 
             params['hidden_size'], 
@@ -156,7 +158,7 @@ def train(n_models=1, directories=[], logging=True, oracle=False, random=False):
         optimizer = torch.optim.Adam(model.parameters(), lr=params['learning_rate'])
 
         # train model on flattened data from all trials
-        for epoch in range(params['num_epochs']):
+        for _ in range(params['num_epochs']):
             train_one_epoch(model, loss_function, optimizer, train_loader)
             validate_one_epoch(model, loss_function, eval_loader)
 
@@ -213,13 +215,8 @@ def train(n_models=1, directories=[], logging=True, oracle=False, random=False):
         if logging:
             print(f"\nModel {model_name} accuracy: {average_accuracy:.2f}%\n")
 
-
-         # Report accuracy of aaronson oracle
-        if oracle:
-            oracle_inference(test_loader, window_size=5)
-
-    return all_models
+    return all_models if len(model_names) > 1 else all_models[0]
 
 
 if __name__ == "__main__":
-    train(1, oracle=False)
+    models = train()

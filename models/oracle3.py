@@ -4,7 +4,10 @@ import os, sys
 import numpy as np
 from random import randrange
 
-def oracle(window_sizes=[5], trial_types=['blind']):
+def oracle(window_sizes=[5], trial_types=['blind'], logging=True):
+    if not isinstance(window_sizes, list):
+        window_sizes = [window_sizes]
+
 
     """ Load Data """
 
@@ -35,52 +38,74 @@ def oracle(window_sizes=[5], trial_types=['blind']):
 
     """ Inference """
 
-    for window_size in window_sizes:
+    results = {}
 
-        print(f"\nOracle (window {window_size})\n")
+    for window_size in window_sizes:
         average_accuracy = 0
+        results[window_size] = {}
+
+        if logging:
+            print(f"\nOracle (window {window_size})\n")
         
         for trial_number, sequence in enumerate(test_data):
             oracle = {}
-            preds = []
-            hits = 0
+            correct = 0
+            
+            results[window_size][trial_number+1] = {
+                "accuracies": [],
+                "predictions": []
+            }
 
             # prediction loop
             for i in range(len(sequence)): 
                 try:
-                    ngram = sequence[i:i + window_size]
-                    target = sequence[i + window_size]
+                    ngram = sequence[i:i + window_size + 1]
+                    target = sequence[i + window_size + 1]
                 except IndexError:
                     break
 
                 ngram_str = "".join(map(str, ngram))
+                
                 try:
                     # use string of ngram as key for oracle dictionary
-                    pred = oracle[ngram_str]
-                    # assess which key has been seen most following this ngram
-                    if pred["0"] == pred["1"]: pred = randrange(1)
-                    else: pred = 0 if pred["0"] > pred["1"] else 1
+                    prediction = oracle[ngram_str]
                     
-                except KeyError:
-                    # if ngram not already in oracle, predict randomly
-                    pred = randrange(1)
+                    # assess which key has been seen most following this ngram
+                    if prediction["0"] > prediction["1"]:
+                        prediction = 0
+                    elif prediction["0"] < prediction["1"]:
+                        prediction = 1
+                    
+                    # if equal, predict randomly
+                    else: prediction = randrange(2)
 
-                # assess prediction 
-                if pred == target: hits += 1
-                # append prediction to list
-                preds.append(pred)
+                # if ngram not already in oracle, predict randomly
+                except KeyError: prediction = randrange(2)
+
+                # assess prediction, update accuracy
+                if prediction == target: correct += 1
+                accuracy = 100 * correct / (i + 1)
+                results[window_size][trial_number+1]["accuracies"].append(accuracy)
+                results[window_size][trial_number+1]["predictions"].append(prediction)
                 
                 # update oracle with new key
                 oracle[ngram_str] = {"0": 0, "1": 0}
                 oracle[ngram_str][str(int(target))] += 1
 
-            accuracy = (hits / len(preds)) * 100
-            print(f"trial {trial_number + 1} accuracy: {accuracy:.2f}%")
             average_accuracy += accuracy
+            
+            if logging:
+                print(f"trial {trial_number + 1} accuracy: {accuracy:.2f}%")
 
+        # print average accuracy of oracle
         average_accuracy /= len(test_data)
-        print(f"\nOracle accuracy: {average_accuracy:.2f}%\n")
+        results[window_size]["accuracy"] = average_accuracy
+        
+        if logging:
+            print(f"\nAvg Accuracy: {average_accuracy:.2f}%\n")
+
+    return results
 
 
 if __name__ == "__main__":
-    oracle([3,4,5,6,7,8,9,10])
+    r = oracle([3,4,5,6,7,8,9,10])

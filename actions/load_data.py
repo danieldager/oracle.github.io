@@ -1,5 +1,7 @@
 # TODO: generalize base_path setting (oracle3)
 # TODO: test data needs to be a split of trial types
+# TODO: load a structure which also includes the trial names
+# TODO: be able to load specific trials from a list
 
 import os, sys
 import numpy as np
@@ -104,16 +106,14 @@ def load_data(directories=[], batch_size=32):
     # TODO: god this is so ugly 
     # split test data
     split_ratio = 0.1
-    total_size = len(sequences)
-    test_size = int(split_ratio * total_size)
+    test_size = int(split_ratio * len(sequences))
     test_data = sequences[-test_size:]
     sequences = sequences[:-test_size]
 
     # split train and eval data
     split_ratio = 0.8
-    total_size = len(sequences)
-    train_size = int(split_ratio * total_size)
-    eval_size = total_size - train_size
+    train_size = int(split_ratio * len(sequences))
+    eval_size = len(sequences) - train_size
     train_data, eval_data = random_split(sequences, [train_size, eval_size])
 
     # segment sequences

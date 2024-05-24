@@ -2,39 +2,29 @@ import os, sys
 from pprint import pprint
 
 import torch
-from torch.utils.data import Dataset, DataLoader
-from torch.nn.utils.rnn import pad_sequence
+from model4 import LSTM
 
-from oracle2 import oracle_inference
-from model3 import LSTM, load_data
+for module in ['actions']:
+    cwd = os.path.dirname(__file__)
+    path = os.path.join(cwd, '..', module)
+    sys.path.append(os.path.abspath(path))
+
+from load_data import load_data
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 
-""" Test Dataset """
+""" Inference """
 
-class TestDataset(Dataset):
-    def __init__(self, sequences):
-        self.sequences = sequences
+def inference(model_names=['0521-2327'], test_loader=None, logging=True):
+    if not isinstance(model_names, list):
+        model_names = [model_names]
 
-    def __len__(self):
-        return len(self.sequences)
+    results = {}
 
-    def __getitem__(self, idx):
-        sequence = self.sequences[idx]
-        segments = [sequence[:i] for i in range(1, len(sequence) + 1)]
-        return segments
-        
-def collate_fn(batch):
-    sequences = batch[0]
-    lengths = [len(seq) for seq in sequences]
-    padded_sequences = pad_sequence(sequences, batch_first=True)
-    return padded_sequences, lengths
-
-
-""" Run Inference """
-
-def run_inference(test_loader, model_names=['0521-2327'], logging=True):
+    # load data if no test_loader is given
+    if test_loader is None:
+        _, _, test_loader = load_data()
 
     # Get the current directory of this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -52,14 +42,15 @@ def run_inference(test_loader, model_names=['0521-2327'], logging=True):
         if logging:
             print(f"Model {model_name}\n")
             pprint(params), print("\n")
-
-        all_accuracies = []
-        all_predictions = []
+        
+        # average accuracy for a model across all test trials
+        results[model_name] = { "accuracy": 0 }
 
         for trial, (segments, lengths) in enumerate(test_loader):
             correct = 0
             accuracies = []
             predictions = []
+            
 
             # run inference on each trial
             for i in range(len(segments) - 1):
@@ -72,22 +63,30 @@ def run_inference(test_loader, model_names=['0521-2327'], logging=True):
                     prediction = 0 if (model(X, length).item()) < 0.5 else 1
                 if prediction == y: correct += 1
                 
+                # store prediction and accuracy at each step
                 predictions.append(prediction)
                 accuracies.append(100 * correct / (i + 1))
 
+            # add final accuracy of the trial to average
+            results[model_name]['accuracy'] += accuracies[-1]
+
+            # store trial predictions and accuracies for each trial
+            results[model_name][trial + 1] = {
+                "accuracies": accuracies,
+                "predictions": predictions
+            }
+            
             if logging:
                 print(f"trial {trial + 1} accuracy: {accuracies[-1]:.2f}%")
-            all_accuracies.append(accuracies)
 
         # calculate average accuracy of model over all trials
-        average_accuracy = sum([trial[-1] for trial in all_accuracies]) / len(test_loader)
+        results[model_name]['accuracy'] /= len(test_loader)
+        
         if logging:
-            print(f"\nModel {model_name} accuracy: {average_accuracy:.2f}%\n")
+            print(f"\nAvg Accuracy: {results[model_name]['accuracy']:.2f}%\n")
+ 
+    return results
 
-    return average_accuracy, all_accuracies, all_predictions
-
-    # Report accuracy of aaronson oracle
-    # oracle_inference(sequences, window_size=5)
 
 if __name__ == "__main__":
-    run_inference()
+    results = inference()
