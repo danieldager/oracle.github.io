@@ -42,7 +42,7 @@ for module in ['actions']:
 # print(base_path)
 
 from oracle2 import oracle_inference
-from load_data import load_data
+from load_data2 import load_data
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 

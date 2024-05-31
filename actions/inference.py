@@ -9,7 +9,7 @@ for module in ['actions']:
     path = os.path.join(cwd, '..', module)
     sys.path.append(os.path.abspath(path))
 
-from load_data import load_data
+from load_data2 import load_data
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
@@ -50,7 +50,6 @@ def inference(model_names=['0521-2327'], test_loader=None, logging=True):
             correct = 0
             accuracies = []
             predictions = []
-            
 
             # run inference on each trial
             for i in range(len(segments) - 1):

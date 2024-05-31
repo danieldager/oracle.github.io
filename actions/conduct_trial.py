@@ -28,8 +28,10 @@ open /opt/homebrew/Cellar/labrecorder/1.16.2_9/LabRecorder/LabRecorder.app
 p = PupilCore()
 
 # these are the directories where the data will be saved
-trials_dir = "blind_trials"
-pupil_data_dir = "pupil_data"
+subject = 'branson'
+condition = 'blind'
+trials_dir = os.path.join('trials', subject + '_' + condition)
+pupil_data_dir = os.path.join('trials_pd', subject + '_' + condition)
 
 
 def run_trials(n_trials, min_time, max_time):
@@ -117,5 +119,5 @@ def run_trials(n_trials, min_time, max_time):
 
 
 if __name__ == "__main__":
-    run_trials(10, 30, 80)
+    run_trials(15, 30, 90)
     print('\nAll trials complete!')

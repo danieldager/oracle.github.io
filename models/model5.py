@@ -33,28 +33,23 @@ def get_hyperparameters(random):
             'hidden_size': randint(30, 80),
             'num_stacked_layers': randint(1, 3),
             'learning_rate': round(learning_rate, 4),
-            'num_epochs': randint(1, 3)
+            'num_epochs': randint(1, 3),
+            'segment_length': randint(3, 8)
         }
     else:
-        # hyperparameters = {
-        #     'batch_size': 100,
-        #     'hidden_size': 10,
-        #     'num_stacked_layers': 1,
-        #     'learning_rate': 0.01,
-        #     'num_epochs': 1
-        # }
         hyperparameters = {
-            'batch_size': 140,
-            'hidden_size': 75,
-            'learning_rate': 0.005,
-            'num_epochs': 2,
-            'num_stacked_layers': 1
+            'batch_size': 100,
+            'hidden_size': 10,
+            'num_stacked_layers': 1,
+            'learning_rate': 0.01,
+            'num_epochs': 1,
+            'segment_length': 5
         }
 
     return hyperparameters
 
 
-class LSTM4(nn.Module):
+class LSTM5(nn.Module):
     def __init__(self, input_size, hidden_size, num_stacked_layers):
         super().__init__()
         self.hidden_size = hidden_size
@@ -64,22 +59,13 @@ class LSTM4(nn.Module):
         self.linear = nn.Linear(hidden_size, 1)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x, lengths):
+    def forward(self, x):
         h0 = torch.zeros(self.num_stacked_layers, x.size(0), self.hidden_size).to(device)
         c0 = torch.zeros(self.num_stacked_layers, x.size(0), self.hidden_size).to(device)
 
-        # pack sequence to avoid processing padded values
-        packed_x = pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
-        packed_out, _ = self.lstm(packed_x, (h0, c0))
-
-        # unpack sequence for processing by linear layer
-        out, _ = pad_packed_sequence(packed_out, batch_first=True)
-
-        # batch indices to extract the last hidden state
-        batch_indices = torch.arange(out.size(0)).to(device)
-
-        # extract last hidden state of each sequence
-        out = self.linear(out[batch_indices, lengths - 1])
+        # since segments are of fixed length, we can pass them directly through the model 
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.linear(out[:, -1, :])
         out = self.sigmoid(out)
 
         return out
@@ -90,13 +76,12 @@ def train_one_epoch(model, loss_function, optimizer, train_loader, log=True):
     total_loss = 0.0
     
     # i = batch index, (X, y, lengths) = batch
-    for i, (X, y, lengths) in enumerate(train_loader):
+    for i, (X, y) in enumerate(train_loader):
         X = X.to(device)
         y = y.to(device)
-        lengths = lengths.to(device)
 
         # forward pass, compute loss
-        y_pred = model(X, lengths)
+        y_pred = model(X)
         loss = loss_function(y_pred, y)
         total_loss += loss.item()
 
@@ -117,14 +102,13 @@ def validate_one_epoch(model, loss_function, eval_loader, log=True):
     model.train(False)
     total_loss = 0.0
 
-    for _, (X, y, lengths) in enumerate(eval_loader):
+    for _, (X, y) in enumerate(eval_loader):
         X = X.to(device)
         y = y.to(device)
-        lengths = lengths.to(device)
 
         # forward pass, compute loss
         with torch.no_grad():
-            y_pred = model(X, lengths)
+            y_pred = model(X)
             loss = loss_function(y_pred, y)
             total_loss += loss.item()
 
@@ -136,25 +120,26 @@ def validate_one_epoch(model, loss_function, eval_loader, log=True):
 
 """ Train/Test """
 
-def train4(input_size=3, directories=[], logging=True, random=True):
+def train5(input_size=3, directories=None, logging=True, random=True):
 
     """ Training """
 
     # name model
     model_name = datetime.now().strftime('%m%d-%H%M')
     print(model_name + '\n')
-        
+
     # get hyperparameters
     params = get_hyperparameters(random)
     pprint(params), print("\n")
 
     # load data
-    train_loader, eval_loader, test_loader = load_data(directories, batch_size=params['batch_size'])
+    train_loader, eval_loader, test_loader = load_data(
+        directories, params['segment_length'], params['batch_size']
+    )
     
     # inputs = decision, delay, pupil diameter
-    input_size = input_size
-    model = LSTM4(
-        input_size, 
+    model = LSTM5(
+        input_size,
         params['hidden_size'], 
         params['num_stacked_layers']
     ).to(device)
@@ -175,29 +160,32 @@ def train4(input_size=3, directories=[], logging=True, random=True):
     """ Testing  """
 
     average_accuracy = 0
-    
+
     # run inference on each test trial
-    for trial, (segments, lengths) in enumerate(test_loader):
+    for trial, segments in enumerate(test_loader):
         correct = 0
         accuracies = []
         predictions = []
 
-        # format each segment for inference
+        # run inference on each trial
         for i in range(len(segments) - 1):
-            X = segments[i].unsqueeze(0).to(device)
-            y = segments[i + 1][i + 1][0].item()
-            length = torch.tensor([lengths[i]]).to(device)
-
+            X = segments[i][:, :params['segment_length'], :].to(device)
+            y = segments[i][:, params['segment_length'], 0].item()
+            
             # make prediction
             with torch.no_grad():
-                prediction = 0 if (model(X, length).item()) < 0.5 else 1
+                prediction = 0 if (model(X).item()) < 0.5 else 1
             if prediction == y: correct += 1
             
+            # store prediction and accuracy at each step
+            predictions.append(prediction)
             accuracies.append(100 * correct / (i + 1))
 
+        # add final accuracy of the trial to average
+        average_accuracy += accuracies[-1]
+        
         if logging:
             print(f"trial {trial + 1} accuracy: {accuracies[-1]:.2f}%")
-        average_accuracy += accuracies[-1]
 
     # calculate average accuracy of model over all test trials
     average_accuracy /= len(test_loader)
@@ -208,4 +196,4 @@ def train4(input_size=3, directories=[], logging=True, random=True):
 
 
 if __name__ == "__main__":
-    models = train4()
+    model = train5()

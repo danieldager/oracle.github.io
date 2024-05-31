@@ -4,7 +4,7 @@ import os, sys
 import numpy as np
 from random import randrange
 
-def oracle(window_sizes=[5], trial_types=['blind'], logging=True):
+def oracle(window_sizes=[5], trial_types=None, logging=True):
     if not isinstance(window_sizes, list):
         window_sizes = [window_sizes]
 
