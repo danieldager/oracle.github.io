@@ -1,14 +1,15 @@
-
 from random import randrange
 
 def oracle_inference(trials, window_size=5):
     print("\n\nOracle inference\n")
     average_accuracy = 0
     
-    for trial_number, sequence in enumerate(trials):
+    for trial_number, trial in enumerate(trials):
         oracle = {}
         preds = []
         hits = 0
+
+        sequence = [0 if e['key'] == 'L' else 1 for e in trial]
 
         # prediction loop
         for i in range(len(sequence)): 

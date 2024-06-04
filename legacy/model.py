@@ -1,5 +1,5 @@
 
-from oracle import oracle_inference
+from legacy.oracle import oracle_inference
 from helpers import (format_sequence, format_datasets, load_data_from_db)
 
 import torch

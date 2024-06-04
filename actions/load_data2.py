@@ -152,7 +152,7 @@ def load_data(directories, segment_length=None, batch_size=100):
 
     # TODO: god this is so ugly 
     # split test data
-    split_ratio = 0.1
+    split_ratio = 0.2
     test_size = int(split_ratio * len(sequences))
     test_data = sequences[-test_size:]
     sequences = sequences[:-test_size]

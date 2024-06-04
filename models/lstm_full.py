@@ -1,10 +1,9 @@
 # TODO: track train and inference times
 
 import os, sys
-import numpy as np
 from pprint import pprint
-from random import randint, uniform
 from datetime import datetime
+from random import randint, uniform
 
 import torch
 from torch import nn
@@ -15,7 +14,7 @@ for module in ['actions']:
     path = os.path.join(cwd, '..', module)
     sys.path.append(os.path.abspath(path))
 
-from load_data2 import load_data
+from load_data3 import load_data_full
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
@@ -47,14 +46,14 @@ def get_hyperparameters(random):
             'batch_size': 140,
             'hidden_size': 75,
             'learning_rate': 0.005,
-            'num_epochs': 2,
+            'num_epochs': 4,
             'num_stacked_layers': 1
         }
 
     return hyperparameters
 
 
-class LSTM4(nn.Module):
+class LSTM_Full(nn.Module):
     def __init__(self, input_size, hidden_size, num_stacked_layers):
         super().__init__()
         self.hidden_size = hidden_size
@@ -136,7 +135,7 @@ def validate_one_epoch(model, loss_function, eval_loader, log=True):
 
 """ Train/Test """
 
-def train4(input_size=3, directories=[], logging=True, random=True):
+def train_full(train_data, eval_data, test_data, input_size=3, logging=True, random=False):
 
     """ Training """
 
@@ -149,12 +148,13 @@ def train4(input_size=3, directories=[], logging=True, random=True):
     pprint(params), print("\n")
 
     # load data
-    train_loader, eval_loader, test_loader = load_data(directories, batch_size=params['batch_size'])
+    train_loader, eval_loader, test_loader = load_data_full(
+        train_data, eval_data, test_data, batch_size=params['batch_size']
+    )
     
-    # inputs = decision, delay, pupil diameter
-    input_size = input_size
-    model = LSTM4(
-        input_size, 
+    # initialize model, loss function, and optimizer
+    model = LSTM_Full(
+        input_size,            # inputs => decision, delay, pupil diameter
         params['hidden_size'], 
         params['num_stacked_layers']
     ).to(device)
@@ -193,6 +193,7 @@ def train4(input_size=3, directories=[], logging=True, random=True):
                 prediction = 0 if (model(X, length).item()) < 0.5 else 1
             if prediction == y: correct += 1
             
+            predictions.append(prediction)
             accuracies.append(100 * correct / (i + 1))
 
         if logging:
@@ -207,5 +208,4 @@ def train4(input_size=3, directories=[], logging=True, random=True):
     return model
 
 
-if __name__ == "__main__":
-    models = train4()
+# if __name__ == "__main__":

@@ -1,21 +1,17 @@
-# TODO: track train and inference times
-
 import os, sys
-import numpy as np
 from pprint import pprint
-from random import randint, uniform
 from datetime import datetime
+from random import randint, uniform
 
 import torch
 from torch import nn
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 for module in ['actions']:
     cwd = os.path.dirname(__file__)
     path = os.path.join(cwd, '..', module)
     sys.path.append(os.path.abspath(path))
 
-from load_data2 import load_data
+from load_data3 import load_data_fixed
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
@@ -49,7 +45,7 @@ def get_hyperparameters(random):
     return hyperparameters
 
 
-class LSTM5(nn.Module):
+class LSTM_Fixed(nn.Module):
     def __init__(self, input_size, hidden_size, num_stacked_layers):
         super().__init__()
         self.hidden_size = hidden_size
@@ -120,7 +116,7 @@ def validate_one_epoch(model, loss_function, eval_loader, log=True):
 
 """ Train/Test """
 
-def train5(input_size=3, directories=None, logging=True, random=True):
+def train_fixed(train_data, eval_data, test_data, input_size=3, logging=True, random=False):
 
     """ Training """
 
@@ -133,13 +129,13 @@ def train5(input_size=3, directories=None, logging=True, random=True):
     pprint(params), print("\n")
 
     # load data
-    train_loader, eval_loader, test_loader = load_data(
-        directories, params['segment_length'], params['batch_size']
+    train_loader, eval_loader, test_loader = load_data_fixed(
+        train_data, eval_data, test_data, params['batch_size'], params['segment_length']
     )
     
-    # inputs = decision, delay, pupil diameter
-    model = LSTM5(
-        input_size,
+    # initialize model, loss function, and optimizer
+    model = LSTM_Fixed(
+        input_size,       # inputs => decision, delay, pupil diameter
         params['hidden_size'], 
         params['num_stacked_layers']
     ).to(device)
@@ -195,5 +191,5 @@ def train5(input_size=3, directories=None, logging=True, random=True):
     return model
 
 
-if __name__ == "__main__":
-    model = train5()
+# if __name__ == "__main__":
+#     model = train5()

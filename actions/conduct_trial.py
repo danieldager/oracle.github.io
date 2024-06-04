@@ -28,7 +28,7 @@ open /opt/homebrew/Cellar/labrecorder/1.16.2_9/LabRecorder/LabRecorder.app
 p = PupilCore()
 
 # these are the directories where the data will be saved
-subject = 'branson'
+subject = 'nicolas'
 condition = 'blind'
 trials_dir = os.path.join('trials', subject + '_' + condition)
 pupil_data_dir = os.path.join('trials_pd', subject + '_' + condition)
@@ -43,7 +43,7 @@ def run_trials(n_trials, min_time, max_time):
         trial_duration = np.random.randint(min_time, max_time)
 
         # create a unique trial name, to be used as filename for data
-        trial_name = datetime.now().strftime('%m%d-%H%M')
+        trial_name = datetime.now().strftime('%m%d-%H%M%S')
 
         # begin recording pupil diameter data
         pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=trial_duration + 1)
