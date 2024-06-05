@@ -75,52 +75,9 @@ def collate_fn2(batch):
     return padded_sequences, lengths
 
 
-class SegmentDataset2(Dataset):
-    def __init__(self, data, segment_length):
-        self.segments = self.segment_sequences(data, segment_length)
-
-    def __len__(self):
-        return len(self.segments)
-
-    def __getitem__(self, i):
-        segment = self.segments[i]
-        X = segment[:-1]
-        y = segment[-1][0]
-        return X, y
-
-    def segment_sequences(self, data, segment_length):
-        segments = []
-        for sequence in data:
-            for i in range(segment_length, len(sequence) + 1):
-                segments.append(sequence[i-segment_length:i])
-        return segments
-
-# Custom collate function without padding
-def collate_fn3(batch):
-    sequences, labels = zip(*batch)
-    sequences = torch.stack(sequences).to(device)
-    labels = torch.tensor(labels).float().unsqueeze(1).to(device)
-    return sequences, labels
-
-
-class TestDataset2(Dataset):
-    def __init__(self, sequences, segment_length):
-        self.sequences = sequences
-        self.seg_len = segment_length
-
-    def __len__(self):
-        return len(self.sequences)
-
-    def __getitem__(self, idx):
-        sequence = self.sequences[idx]
-        end = len(sequence) - self.seg_len - 2
-        segments = [sequence[i:i + self.seg_len + 1] for i in range(0, end)]
-        return segments
-
-
 """ Load Data """
 
-def load_data(directories, segment_length=None, batch_size=100):
+def load_data(directories=[], batch_size=32):
 
     # Get the current directory of this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -130,10 +87,6 @@ def load_data(directories, segment_length=None, batch_size=100):
     # if no directories are specified, use all subdirectories under base_path
     if not directories:
         directories = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
-
-    # if directories is not a list, convert to list
-    if not isinstance(directories, list):
-        directories = [directories]
     
     # TODO: divide test data into trial types
     file_paths = []
@@ -152,7 +105,7 @@ def load_data(directories, segment_length=None, batch_size=100):
 
     # TODO: god this is so ugly 
     # split test data
-    split_ratio = 0.2
+    split_ratio = 0.1
     test_size = int(split_ratio * len(sequences))
     test_data = sequences[-test_size:]
     sequences = sequences[:-test_size]
@@ -163,29 +116,15 @@ def load_data(directories, segment_length=None, batch_size=100):
     eval_size = len(sequences) - train_size
     train_data, eval_data = random_split(sequences, [train_size, eval_size])
 
-
-    if not segment_length:
-        # segment sequences
-        train_segments = SegmentDataset(train_data)
-        eval_segments = SegmentDataset(eval_data)
-        test_segments = TestDataset(test_data)
-
-        fnA = collate_fn1
-        fnB = collate_fn2
-
-    else:
-        # segment sequences
-        train_segments = SegmentDataset2(train_data, segment_length)
-        eval_segments = SegmentDataset2(eval_data, segment_length)
-        test_segments = TestDataset2(test_data, segment_length)
-
-        fnA = collate_fn3
-        fnB = None
+    # segment sequences
+    train_segments = SegmentDataset(train_data)
+    eval_segments = SegmentDataset(eval_data)
+    test_segments = TestDataset(test_data)
 
     # create data loaders
-    train_loader = DataLoader(train_segments, batch_size=batch_size, shuffle=True, collate_fn=fnA)
-    eval_loader = DataLoader(eval_segments, batch_size=batch_size, shuffle=False, collate_fn=fnA)
-    test_loader = DataLoader(test_segments, batch_size=1, shuffle=False, collate_fn=fnB)
+    train_loader = DataLoader(train_segments, batch_size=batch_size, shuffle=True, collate_fn=collate_fn1)
+    eval_loader = DataLoader(eval_segments, batch_size=batch_size, shuffle=False, collate_fn=collate_fn1)
+    test_loader = DataLoader(test_segments, batch_size=1, shuffle=False, collate_fn=collate_fn2)
 
     return train_loader, eval_loader, test_loader
 

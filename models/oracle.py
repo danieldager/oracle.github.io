@@ -1,7 +1,4 @@
-# TODO: divide test data into trial types
-
 import os, sys
-import numpy as np
 from random import randrange
 
 for module in ['actions']:
@@ -9,7 +6,7 @@ for module in ['actions']:
     path = os.path.join(cwd, '..', module)
     sys.path.append(os.path.abspath(path))
 
-from load_data3 import split_data
+from load_data import load_data
 
 
 def oracle(test_data, window_sizes=5, logging=True):
@@ -18,9 +15,6 @@ def oracle(test_data, window_sizes=5, logging=True):
 
     # convert test_data to numpy array and extract first column
     test_data = [sequence.numpy()[:, 0] for sequence in test_data]
-
-
-    """ Inference """
 
     results = {}
 
@@ -92,5 +86,5 @@ def oracle(test_data, window_sizes=5, logging=True):
 
 
 if __name__ == "__main__":
-    _, _, test_data = split_data()
+    _, _, test_data = load_data()
     r = oracle(test_data, [3, 6, 9])

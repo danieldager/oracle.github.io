@@ -14,7 +14,7 @@ for module in ['actions']:
     path = os.path.join(cwd, '..', module)
     sys.path.append(os.path.abspath(path))
 
-from load_data3 import load_data_full
+from load_data import load_data_vary
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
@@ -28,6 +28,7 @@ def get_hyperparameters(random):
     if random:
         learning_rate = 10 ** uniform(-2.5, -1.5)
         hyperparameters = {
+            'input_size': 3,
             'batch_size': randint(50, 150),
             'hidden_size': randint(30, 80),
             'num_stacked_layers': randint(1, 3),
@@ -35,14 +36,8 @@ def get_hyperparameters(random):
             'num_epochs': randint(1, 3)
         }
     else:
-        # hyperparameters = {
-        #     'batch_size': 100,
-        #     'hidden_size': 10,
-        #     'num_stacked_layers': 1,
-        #     'learning_rate': 0.01,
-        #     'num_epochs': 1
-        # }
         hyperparameters = {
+            'input_size': 3,
             'batch_size': 140,
             'hidden_size': 75,
             'learning_rate': 0.005,
@@ -53,9 +48,10 @@ def get_hyperparameters(random):
     return hyperparameters
 
 
-class LSTM_Full(nn.Module):
+class LSTM_Vary(nn.Module):
     def __init__(self, input_size, hidden_size, num_stacked_layers):
         super().__init__()
+        self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_stacked_layers = num_stacked_layers
 
@@ -67,8 +63,14 @@ class LSTM_Full(nn.Module):
         h0 = torch.zeros(self.num_stacked_layers, x.size(0), self.hidden_size).to(device)
         c0 = torch.zeros(self.num_stacked_layers, x.size(0), self.hidden_size).to(device)
 
+        # add channel dimension if input size is 1        
+        if self.input_size == 1:
+            x = x.unsqueeze(2)
+
         # pack sequence to avoid processing padded values
         packed_x = pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
+        
+        # pass packed sequence through LSTM
         packed_out, _ = self.lstm(packed_x, (h0, c0))
 
         # unpack sequence for processing by linear layer
@@ -135,7 +137,7 @@ def validate_one_epoch(model, loss_function, eval_loader, log=True):
 
 """ Train/Test """
 
-def train_full(train_data, eval_data, test_data, input_size=3, logging=True, random=False):
+def train_vary(train_data, eval_data, test_data, params=None, logging=True, random=False):
 
     """ Training """
 
@@ -144,17 +146,18 @@ def train_full(train_data, eval_data, test_data, input_size=3, logging=True, ran
     print(model_name + '\n')
         
     # get hyperparameters
-    params = get_hyperparameters(random)
+    if params is None:
+        params = get_hyperparameters(random)
     pprint(params), print("\n")
 
     # load data
-    train_loader, eval_loader, test_loader = load_data_full(
+    train_loader, eval_loader, test_loader = load_data_vary(
         train_data, eval_data, test_data, batch_size=params['batch_size']
     )
     
     # initialize model, loss function, and optimizer
-    model = LSTM_Full(
-        input_size,            # inputs => decision, delay, pupil diameter
+    model = LSTM_Vary(
+        params['input_size'],
         params['hidden_size'], 
         params['num_stacked_layers']
     ).to(device)
@@ -185,7 +188,13 @@ def train_full(train_data, eval_data, test_data, input_size=3, logging=True, ran
         # format each segment for inference
         for i in range(len(segments) - 1):
             X = segments[i].unsqueeze(0).to(device)
-            y = segments[i + 1][i + 1][0].item()
+
+            if params['input_size'] == 1:
+                y = segments[i + 1][i + 1].item()
+
+            else:
+                y = segments[i + 1][i + 1][0].item()
+
             length = torch.tensor([lengths[i]]).to(device)
 
             # make prediction
@@ -205,7 +214,7 @@ def train_full(train_data, eval_data, test_data, input_size=3, logging=True, ran
     if logging:
         print(f"\nModel {model_name} accuracy: {average_accuracy:.2f}%\n")
 
-    return model
+    return average_accuracy
 
 
 # if __name__ == "__main__":
