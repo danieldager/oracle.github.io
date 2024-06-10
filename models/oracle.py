@@ -9,7 +9,7 @@ for module in ['actions']:
 from load_data import load_data
 
 
-def oracle(test_data, window_sizes=5, logging=True):
+def oracle(window_sizes, test_data, cutoff=False, logging=True):
     if not isinstance(window_sizes, list):
         window_sizes = [window_sizes]
 
@@ -35,14 +35,10 @@ def oracle(test_data, window_sizes=5, logging=True):
             }
 
             # prediction loop
-            for i in range(len(sequence)): 
-                try:
-                    ngram = sequence[i:i + window_size + 1]
-                    target = sequence[i + window_size + 1]
-                except IndexError:
-                    break
-
+            for i in range(len(sequence) - window_size - 2): 
+                ngram = sequence[i:i + window_size]
                 ngram_str = "".join(map(str, ngram))
+                target = sequence[i + window_size]
                 
                 try:
                     # use string of ngram as key for oracle dictionary
@@ -61,10 +57,21 @@ def oracle(test_data, window_sizes=5, logging=True):
                 except KeyError: prediction = randrange(2)
 
                 # assess prediction, update accuracy
-                if prediction == target: correct += 1
-                accuracy = 100 * correct / (i + 1)
-                results[window_size][trial_number+1]["accuracies"].append(accuracy)
-                results[window_size][trial_number+1]["predictions"].append(prediction)
+                if cutoff:
+                    cut = 20 - window_size + 1
+                    if i >= cut:
+                        if prediction == target: correct += 1
+                        accuracy = 100 * correct / (i + 1 - cut)
+                        
+                        results[window_size][trial_number+1]["accuracies"].append(accuracy)
+                        results[window_size][trial_number+1]["predictions"].append(prediction)
+
+                elif i >= window_size:
+                    if prediction == target: correct += 1
+                    accuracy = 100 * correct / (i + 1)
+                    
+                    results[window_size][trial_number+1]["accuracies"].append(accuracy)
+                    results[window_size][trial_number+1]["predictions"].append(prediction)
                 
                 # update oracle with new key
                 oracle[ngram_str] = {"0": 0, "1": 0}
@@ -74,6 +81,9 @@ def oracle(test_data, window_sizes=5, logging=True):
             
             if logging:
                 print(f"trial {trial_number + 1} accuracy: {accuracy:.2f}%")
+
+            # if accuracy < 40:
+            #     print(sequence)
 
         # print average accuracy of oracle
         average_accuracy /= len(test_data)

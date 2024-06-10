@@ -152,6 +152,8 @@ def get_sequences(folders, path):
     sequences = []
     for file in files:
         sequence = np.load(file)
+        if sequence.shape[1] < 40:
+            print(file)
         sequence = torch.tensor(sequence, dtype=torch.float32)
         sequences.append(sequence.T)
 
@@ -191,9 +193,9 @@ def load_data(train_folders=None, test_folders=None, inputs=None):
         
         # if no test folders are specified, split train data
         else:
-            test_size = int(split_ratio * len(sequences))
-            train_size = len(sequences) - test_size
-            train_data, test_data = random_split(sequences, [train_size, test_size])
+            test_size = int(split_ratio * len(train_data))
+            train_size = len(train_data) - test_size
+            train_data, test_data = random_split(train_data, [train_size, test_size])
             
     # if no arguments are specified, split all trial data
     else:
@@ -234,11 +236,11 @@ def prune(data, input):
         elif input == 'pupil':
             pruned_data.append(sequence[:, [0, 2]])
         
-        elif input == 'decision':
+        elif input == 'binary':
             pruned_data.append(sequence[:, 0])
 
         else:
-            print("Valid inputs are 'decision', 'delay', or 'pupil'")
+            print("Valid inputs are 'binary', 'delay', or 'pupil'")
             return None
 
     return pruned_data

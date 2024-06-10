@@ -25,24 +25,64 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 """ Model """
 
 def get_hyperparameters(random):
-    if random:
+
+    if random == 'binary':
+        learning_rate = 10 ** uniform(-2.5, -1.5)
+        hyperparameters = {
+            'input_size': 1,
+            'batch_size': randint(15, 25) * 10,
+            'hidden_size': randint(3, 9) * 10,
+            'num_stacked_layers': randint(1, 3),
+            'learning_rate': round(learning_rate, 4),
+            # 'num_epochs': randint(2, 5),
+            'num_epochs': 1,
+        }
+
+    elif random == 'delay':
+        learning_rate = 10 ** uniform(-2.5, -1.5)
+        hyperparameters = {
+            'input_size': 2,
+            'batch_size': randint(15, 25) * 10,
+            'hidden_size': randint(3, 9) * 10,
+            'num_stacked_layers': randint(1, 3),
+            'learning_rate': round(learning_rate, 4),
+            # 'num_epochs': randint(2, 5),
+            'num_epochs': 1,
+        }
+
+    elif random == 'pupil':
+        learning_rate = 10 ** uniform(-2.5, -1.5)
+        hyperparameters = {
+            'input_size': 2,
+            'batch_size': randint(15, 25) * 10,
+            'hidden_size': randint(3, 9) * 10,
+            'num_stacked_layers': randint(1, 3),
+            'learning_rate': round(learning_rate, 4),
+            # 'num_epochs': randint(2, 5),
+            'num_epochs': 1,
+        }
+
+    elif random == 'all':
         learning_rate = 10 ** uniform(-2.5, -1.5)
         hyperparameters = {
             'input_size': 3,
-            'batch_size': randint(50, 150),
-            'hidden_size': randint(30, 80),
+            'batch_size': randint(15, 25) * 10,
+            'hidden_size': randint(3, 9) * 10,
             'num_stacked_layers': randint(1, 3),
             'learning_rate': round(learning_rate, 4),
-            'num_epochs': randint(1, 3)
+            # 'num_epochs': randint(2, 5),
+            'num_epochs': 1,
         }
+
     else:
         hyperparameters = {
             'input_size': 3,
-            'batch_size': 140,
-            'hidden_size': 75,
-            'learning_rate': 0.005,
-            'num_epochs': 4,
-            'num_stacked_layers': 1
+            'batch_size': 100,
+            'hidden_size': 10,
+            'num_stacked_layers': 1,
+            'learning_rate': 0.01,
+            # 'num_epochs': randint(2, 5),
+            'num_epochs': 1,
         }
 
     return hyperparameters
@@ -86,7 +126,7 @@ class LSTM_Vary(nn.Module):
         return out
 
 
-def train_one_epoch(model, loss_function, optimizer, train_loader, log=True):
+def train_one_epoch(model, loss_function, optimizer, train_loader, logging=True):
     model.train(True)
     total_loss = 0.0
     
@@ -107,14 +147,14 @@ def train_one_epoch(model, loss_function, optimizer, train_loader, log=True):
         optimizer.step()
 
         # # print batch number and average loss every 10 batches
-        if log and i % 10 == 0:
+        if logging and i % 10 == 0:
             print(f'batch {i} loss: {total_loss / (i+1)}')
             loss = 0.0
 
     return total_loss / len(train_loader)
 
 
-def validate_one_epoch(model, loss_function, eval_loader, log=True):
+def validate_one_epoch(model, loss_function, eval_loader, logging=True):
     model.train(False)
     total_loss = 0.0
 
@@ -129,7 +169,7 @@ def validate_one_epoch(model, loss_function, eval_loader, log=True):
             loss = loss_function(y_pred, y)
             total_loss += loss.item()
 
-    if log:
+    if logging:
         print(f'validation loss: {total_loss / len(eval_loader)}\n\n')
 
     return total_loss / len(eval_loader)
@@ -143,12 +183,15 @@ def train_vary(train_data, eval_data, test_data, params=None, logging=True, rand
 
     # name model
     model_name = datetime.now().strftime('%m%d-%H%M')
-    print(model_name + '\n')
+    if logging:
+        print(model_name + '\n')
         
     # get hyperparameters
     if params is None:
         params = get_hyperparameters(random)
-    pprint(params), print("\n")
+
+    if logging:
+        pprint(params), print("\n")
 
     # load data
     train_loader, eval_loader, test_loader = load_data_vary(
@@ -167,8 +210,8 @@ def train_vary(train_data, eval_data, test_data, params=None, logging=True, rand
 
     # train model on flattened data from all trials
     for _ in range(params['num_epochs']):
-        train_one_epoch(model, loss_function, optimizer, train_loader)
-        validate_one_epoch(model, loss_function, eval_loader)
+        train_one_epoch(model, loss_function, optimizer, train_loader, logging)
+        validate_one_epoch(model, loss_function, eval_loader, logging)
 
     # save model
     base_path = os.path.join(os.path.dirname(__file__), '..', 'saved_models')
@@ -191,7 +234,6 @@ def train_vary(train_data, eval_data, test_data, params=None, logging=True, rand
 
             if params['input_size'] == 1:
                 y = segments[i + 1][i + 1].item()
-
             else:
                 y = segments[i + 1][i + 1][0].item()
 
@@ -214,7 +256,7 @@ def train_vary(train_data, eval_data, test_data, params=None, logging=True, rand
     if logging:
         print(f"\nModel {model_name} accuracy: {average_accuracy:.2f}%\n")
 
-    return average_accuracy
+    return model_name, params, average_accuracy
 
 
 # if __name__ == "__main__":
